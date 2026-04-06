@@ -152,20 +152,42 @@ fn prepareCssAstsForChunkImpl(c: *LinkerContext, chunk: *Chunk, allocator: std.m
                         break :ast &chunk.content.css.asts[i];
                     };
 
-                    filter: {
-                        // Filter out "@charset", "@import", and leading "@layer" rules
-                        for (ast.rules.v.items, 0..) |*rule, ruleidx| {
-                            if (rule.* == .import or rule.* == .ignored or rule.* == .layer_statement) {} else {
-                                // It's okay to do this because AST is allocated into arena
-                                const reslice = ast.rules.v.items[ruleidx..];
-                                ast.rules.v = .{
-                                    .items = reslice,
-                                    .capacity = ast.rules.v.capacity - (ast.rules.v.items.len - reslice.len),
-                                };
-                                break :filter;
+                    {
+                        // Strip leading "@import" and ".ignored" rules. Any
+                        // "@layer" statement rules interleaved with them are
+                        // preserved, because they carry layer ordering
+                        // information that is not re-emitted elsewhere by
+                        // the bundler (e.g. Tailwind's
+                        // `@layer theme, base, components, utilities;`).
+                        //
+                        // Regression: #28914
+                        const items = ast.rules.v.items;
+                        var write_idx: usize = 0;
+                        var read_idx: usize = 0;
+                        scan: while (read_idx < items.len) : (read_idx += 1) {
+                            switch (items[read_idx]) {
+                                .import, .ignored => {
+                                    // Drop this rule
+                                },
+                                .layer_statement => {
+                                    // Keep this rule; compact forward
+                                    if (write_idx != read_idx) items[write_idx] = items[read_idx];
+                                    write_idx += 1;
+                                },
+                                else => break :scan,
                             }
                         }
-                        ast.rules.v.items.len = 0;
+                        // Shift the remaining (non-leading) rules forward to
+                        // fill the gap left by any dropped rules.
+                        if (read_idx > write_idx) {
+                            const tail_len = items.len - read_idx;
+                            std.mem.copyForwards(
+                                bun.css.BundlerCssRule,
+                                items[write_idx .. write_idx + tail_len],
+                                items[read_idx..],
+                            );
+                            ast.rules.v.items.len = write_idx + tail_len;
+                        }
                     }
 
                     wrapRulesWithConditions(ast, allocator, &entry.conditions);
