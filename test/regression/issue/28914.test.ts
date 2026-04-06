@@ -127,10 +127,16 @@ describe.concurrent("issue #28914 - bundler preserves top-level @layer statement
 @import url('./shared.css') layer(one);
 @import url('./shared.css') layer(two);
 `,
+      // `shared.css` deliberately mixes an `.import` rule with an
+      // `.layer_statement` in its prefix so the filter's interleaved
+      // `else` branch (dropped=1, layer_count=1) is exercised, not the
+      // no-op fast path.
       "shared.css": /* css */ `
+@import url('./nested.css');
 @layer base;
 .shared { color: rebeccapurple; }
 `,
+      "nested.css": /* css */ `.nested { color: green; }`,
     });
 
     await using proc = Bun.spawn({
