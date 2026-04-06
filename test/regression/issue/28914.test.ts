@@ -151,18 +151,23 @@ describe.concurrent("issue #28914 - bundler preserves top-level @layer statement
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
 
-    // Both layer-wrapped copies of shared.css must emit the rule. If the
-    // filter mutated the shared AST in place, the second copy's prefix would
-    // already be compacted and one or both `.shared` rules would be missing.
+    // Both layer-wrapped copies of shared.css must emit the rule. An
+    // in-place compaction of the shared backing array would leave a stale
+    // slot that the second visit re-reads, producing three matches
+    // instead of two (the duplicated rule falls through to the wrap step).
     const sharedMatches = out.match(/\.shared\s*\{/g) ?? [];
     expect(sharedMatches.length).toBe(2);
-    // The shared `@layer base;` declaration must also survive in both copies
-    // — it's part of the prefix the filter scans over.
+    // The shared `@layer base;` declaration must also survive in both
+    // copies — it's part of the prefix the filter scans over.
     const baseMatches = out.match(/@layer base;/g) ?? [];
     expect(baseMatches.length).toBe(2);
-    // @layer one and @layer two wrappers must still be present.
-    expect(out).toContain("@layer one");
-    expect(out).toContain("@layer two");
+    // The entry file's comma-separated ordering statement must survive.
+    // `toContain("@layer one")` alone would be satisfied by the
+    // `@layer one { ... }` wrapper, so assert the exact statement form.
+    expect(out).toContain("@layer one, two;");
+    // The per-condition block wrappers must also be present.
+    expect(out).toContain("@layer one {");
+    expect(out).toContain("@layer two {");
     expect(stdout).toContain("Bundled");
     expect(exitCode).toBe(0);
   });
