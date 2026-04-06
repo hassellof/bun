@@ -113,4 +113,51 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
     expect(stdout).toContain("Bundled");
     expect(exitCode).toBe(0);
   });
+
+  // The `.source_index` branch of `prepareCssAstsForChunk` only shallow-copies
+  // the stylesheet, so its `rules.v.items` still points at the AST owned by
+  // the parse graph. If the same source is imported from multiple chunks the
+  // filter must not mutate that shared backing buffer. This test imports the
+  // same file twice with two different layer conditions so both copies go
+  // through the filter, and then checks every layer's rule still shows up.
+  test("duplicate imports of a layered source don't corrupt the shared AST", async () => {
+    using dir = tempDir("css-layer-28914-dup", {
+      "entry.css": /* css */ `
+@layer one, two;
+@import url('./shared.css') layer(one);
+@import url('./shared.css') layer(two);
+`,
+      "shared.css": /* css */ `
+@layer base;
+.shared { color: rebeccapurple; }
+`,
+    });
+
+    await using proc = Bun.spawn({
+      cmd: [bunExe(), "build", "./entry.css", "--outdir=out"],
+      env: bunEnv,
+      cwd: String(dir),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    const [stdout, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
+
+    const out = await Bun.file(`${dir}/out/entry.css`).text();
+
+    // Both layer-wrapped copies of shared.css must emit the rule. If the
+    // filter mutated the shared AST in place, the second copy's prefix would
+    // already be compacted and one or both `.shared` rules would be missing.
+    const sharedMatches = out.match(/\.shared\s*\{/g) ?? [];
+    expect(sharedMatches.length).toBe(2);
+    // The shared `@layer base;` declaration must also survive in both copies
+    // — it's part of the prefix the filter scans over.
+    const baseMatches = out.match(/@layer base;/g) ?? [];
+    expect(baseMatches.length).toBe(2);
+    // @layer one and @layer two wrappers must still be present.
+    expect(out).toContain("@layer one");
+    expect(out).toContain("@layer two");
+    expect(stdout).toContain("Bundled");
+    expect(exitCode).toBe(0);
+  });
 });

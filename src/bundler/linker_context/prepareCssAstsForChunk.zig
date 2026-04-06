@@ -160,35 +160,58 @@ fn prepareCssAstsForChunkImpl(c: *LinkerContext, chunk: *Chunk, allocator: std.m
                         // the bundler (e.g. Tailwind's
                         // `@layer theme, base, components, utilities;`).
                         //
+                        // IMPORTANT: `ast` is only a shallow copy of the
+                        // per-source stylesheet, so `ast.rules.v.items` still
+                        // points at the backing array owned by
+                        // `c.graph.ast.items(.css)`. We MUST NOT mutate that
+                        // buffer in place — a second import of the same
+                        // source_index would observe the compacted prefix and
+                        // drop rules. Instead we either reslice the copied
+                        // header (fast path) or build a fresh rules list.
+                        //
                         // Regression: #28914
-                        const original_len = ast.rules.v.items.len;
-                        var write_idx: usize = 0;
-                        var read_idx: usize = 0;
-                        scan: while (read_idx < original_len) : (read_idx += 1) {
-                            switch (ast.rules.v.items[read_idx]) {
-                                .import, .ignored => {
-                                    // Drop: skip without incrementing write_idx.
+                        const original_rules = ast.rules.v.items;
+                        var layer_count: usize = 0;
+                        var prefix_end: usize = original_rules.len;
+                        prefix_scan: for (original_rules, 0..) |rule, idx| {
+                            switch (rule) {
+                                .import, .ignored => {},
+                                .layer_statement => layer_count += 1,
+                                else => {
+                                    prefix_end = idx;
+                                    break :prefix_scan;
                                 },
-                                .layer_statement => {
-                                    // Keep: compact forward.
-                                    if (write_idx != read_idx) {
-                                        ast.rules.v.items[write_idx] = ast.rules.v.items[read_idx];
-                                    }
-                                    write_idx += 1;
-                                },
-                                else => break :scan,
                             }
                         }
-                        // Shift the remaining (non-leading) rules forward to
-                        // fill the gap left by any dropped rules.
-                        if (read_idx > write_idx) {
-                            const tail_len = original_len - read_idx;
-                            std.mem.copyForwards(
-                                bun.css.BundlerCssRule,
-                                ast.rules.v.items[write_idx..][0..tail_len],
-                                ast.rules.v.items[read_idx..][0..tail_len],
-                            );
-                            ast.rules.v.items.len = write_idx + tail_len;
+                        const dropped = prefix_end - layer_count;
+
+                        if (dropped == 0) {
+                            // Prefix is all "@layer" (or empty). Nothing to
+                            // strip — leave `ast.rules.v` untouched.
+                        } else if (layer_count == 0) {
+                            // Fast path: no "@layer" statements to preserve,
+                            // reslice the copied header forward. This does
+                            // not touch the backing array.
+                            const tail = original_rules[prefix_end..];
+                            ast.rules.v = .{
+                                .items = tail,
+                                .capacity = ast.rules.v.capacity - (original_rules.len - tail.len),
+                            };
+                        } else {
+                            // Interleaved case: allocate a fresh rules list
+                            // so we don't mutate the shared backing array.
+                            // Preserve the "@layer" statements from the
+                            // prefix and append the remaining tail.
+                            var new_rules = bun.css.BundlerCssRuleList{};
+                            for (original_rules[0..prefix_end]) |rule| {
+                                if (rule == .layer_statement) {
+                                    new_rules.v.append(allocator, rule) catch |err| bun.handleOom(err);
+                                }
+                            }
+                            for (original_rules[prefix_end..]) |rule| {
+                                new_rules.v.append(allocator, rule) catch |err| bun.handleOom(err);
+                            }
+                            ast.rules = new_rules;
                         }
                     }
 
