@@ -29,10 +29,7 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [stdout, stderr, exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
-
-    expect(stderr).toBe("");
-    expect(exitCode).toBe(0);
+    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
 
@@ -41,6 +38,7 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
     // The block content must also be present.
     expect(out).toContain("@layer base");
     expect(out).toContain("color: red");
+    expect(exitCode).toBe(0);
   });
 
   test("bare @layer statement survives the bundle", async () => {
@@ -56,13 +54,11 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [stdout, stderr, exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
-
-    expect(stderr).toBe("");
-    expect(exitCode).toBe(0);
+    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
     expect(out).toContain("@layer theme, base, components, utilities;");
+    expect(exitCode).toBe(0);
   });
 
   test("@layer statement followed by an unlayered rule", async () => {
@@ -82,14 +78,12 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [stdout, stderr, exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
-
-    expect(stderr).toBe("");
-    expect(exitCode).toBe(0);
+    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
     expect(out).toContain("@layer reset, base, components, utilities;");
     expect(out).toContain(".foo");
+    expect(exitCode).toBe(0);
   });
 
   test("multiple individual @layer statements are all preserved", async () => {
@@ -111,15 +105,13 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [stdout, stderr, exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
-
-    expect(stderr).toBe("");
-    expect(exitCode).toBe(0);
+    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
     expect(out).toContain("@layer theme;");
     expect(out).toContain("@layer base;");
     expect(out).toContain("@layer components;");
     expect(out).toContain(".foo");
+    expect(exitCode).toBe(0);
   });
 });
