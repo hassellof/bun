@@ -161,17 +161,19 @@ fn prepareCssAstsForChunkImpl(c: *LinkerContext, chunk: *Chunk, allocator: std.m
                         // `@layer theme, base, components, utilities;`).
                         //
                         // Regression: #28914
-                        const items = ast.rules.v.items;
+                        const original_len = ast.rules.v.items.len;
                         var write_idx: usize = 0;
                         var read_idx: usize = 0;
-                        scan: while (read_idx < items.len) : (read_idx += 1) {
-                            switch (items[read_idx]) {
+                        scan: while (read_idx < original_len) : (read_idx += 1) {
+                            switch (ast.rules.v.items[read_idx]) {
                                 .import, .ignored => {
-                                    // Drop this rule
+                                    // Drop: skip without incrementing write_idx.
                                 },
                                 .layer_statement => {
-                                    // Keep this rule; compact forward
-                                    if (write_idx != read_idx) items[write_idx] = items[read_idx];
+                                    // Keep: compact forward.
+                                    if (write_idx != read_idx) {
+                                        ast.rules.v.items[write_idx] = ast.rules.v.items[read_idx];
+                                    }
                                     write_idx += 1;
                                 },
                                 else => break :scan,
@@ -180,11 +182,11 @@ fn prepareCssAstsForChunkImpl(c: *LinkerContext, chunk: *Chunk, allocator: std.m
                         // Shift the remaining (non-leading) rules forward to
                         // fill the gap left by any dropped rules.
                         if (read_idx > write_idx) {
-                            const tail_len = items.len - read_idx;
+                            const tail_len = original_len - read_idx;
                             std.mem.copyForwards(
                                 bun.css.BundlerCssRule,
-                                items[write_idx .. write_idx + tail_len],
-                                items[read_idx..],
+                                ast.rules.v.items[write_idx..][0..tail_len],
+                                ast.rules.v.items[read_idx..][0..tail_len],
                             );
                             ast.rules.v.items.len = write_idx + tail_len;
                         }
