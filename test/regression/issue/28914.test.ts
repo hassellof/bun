@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { bunEnv, bunExe, tempDir } from "harness";
 
-describe("issue #28914 - bundler preserves top-level @layer statements", () => {
+describe.concurrent("issue #28914 - bundler preserves top-level @layer statements", () => {
   test("Tailwind-style @layer statement with a @layer block", async () => {
     using dir = tempDir("css-layer-28914-tailwind", {
       "entry.css": /* css */ `
