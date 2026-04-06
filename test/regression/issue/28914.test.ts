@@ -1,12 +1,7 @@
+// https://github.com/oven-sh/bun/issues/28914
 import { describe, expect, test } from "bun:test";
 import { bunEnv, bunExe, tempDir } from "harness";
 
-// Regression test for https://github.com/oven-sh/bun/issues/28914
-//
-// The CSS bundler was stripping leading `@layer a, b, c;` statements from
-// bundled output, breaking Tailwind CSS layer ordering. The statement should
-// be preserved in the output because it carries cascade ordering information
-// that is not re-emitted elsewhere.
 describe("issue #28914 - bundler preserves top-level @layer statements", () => {
   test("Tailwind-style @layer statement with a @layer block", async () => {
     using dir = tempDir("css-layer-28914-tailwind", {
