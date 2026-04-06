@@ -24,7 +24,7 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
+    const [stdout, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
 
@@ -33,6 +33,7 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
     // The block content must also be present.
     expect(out).toContain("@layer base");
     expect(out).toContain("color: red");
+    expect(stdout).toContain("Bundled");
     expect(exitCode).toBe(0);
   });
 
@@ -49,10 +50,11 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
+    const [stdout, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
     expect(out).toContain("@layer theme, base, components, utilities;");
+    expect(stdout).toContain("Bundled");
     expect(exitCode).toBe(0);
   });
 
@@ -73,11 +75,12 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
+    const [stdout, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
     expect(out).toContain("@layer reset, base, components, utilities;");
     expect(out).toContain(".foo");
+    expect(stdout).toContain("Bundled");
     expect(exitCode).toBe(0);
   });
 
@@ -100,13 +103,14 @@ describe("issue #28914 - bundler preserves top-level @layer statements", () => {
       stderr: "pipe",
     });
 
-    const [, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
+    const [stdout, , exitCode] = await Promise.all([proc.stdout.text(), proc.stderr.text(), proc.exited]);
 
     const out = await Bun.file(`${dir}/out/entry.css`).text();
     expect(out).toContain("@layer theme;");
     expect(out).toContain("@layer base;");
     expect(out).toContain("@layer components;");
     expect(out).toContain(".foo");
+    expect(stdout).toContain("Bundled");
     expect(exitCode).toBe(0);
   });
 });
