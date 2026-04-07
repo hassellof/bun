@@ -515,9 +515,8 @@ describe("bun", () => {
         stderr: "pipe",
       });
 
-      expect(stderr.toString()).toMatch(/elide-lines has no effect in non-terminal environments/);
-      expect(stdout.toString()).toMatch(/(?:log_line[\s\S]*?){20}/);
-      expect(exitCode).toBe(0);
+      expect(stderr.toString()).toMatch(/--elide-lines is only supported in terminal environments/);
+      expect(exitCode).not.toBe(0);
       return;
     }
 
