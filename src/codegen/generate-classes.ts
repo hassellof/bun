@@ -2770,12 +2770,19 @@ const classes: ClassDefinition[] = [];
   for (const file of files) {
     const filepath = path.resolve(file);
     const result = require(filepath);
-    if (!(result?.default?.length ?? 0)) {
+    // An empty `export default []` is a valid tombstone: the file is
+    // deliberately present but declares no classes (used on branches that
+    // need the file to exist without shipping the class).
+    if (!Array.isArray(result?.default)) {
       errors.push(
         new TypeError(
           `Missing classes in "${path.relative(process.cwd(), filepath)}". Expected \`export default [ define(...) ] satisfies Array<ClassDefinition>\` but got ${Bun.inspect(result).slice(0, 100) + "..."} `,
         ),
       );
+      continue;
+    }
+    if (result.default.length === 0) {
+      console.log("Skipping empty classes tombstone:", file);
       continue;
     }
 
