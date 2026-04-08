@@ -859,8 +859,14 @@ pub const Bunfig = struct {
                             // representable value is treated as a bunfig
                             // error so the user gets a real message instead
                             // of a crash.
+                            //
+                            // The upper bound uses `>=` because f64 can't
+                            // represent `maxInt(usize)` exactly on 64-bit
+                            // targets — `@floatFromInt(maxInt(u64))` rounds
+                            // up to `2^64`, which is itself out of range for
+                            // `@intFromFloat` into `usize`.
                             const value = elide_lines.data.e_number.value;
-                            if (value < 0 or !std.math.isFinite(value) or value > @as(f64, @floatFromInt(std.math.maxInt(usize)))) {
+                            if (value < 0 or !std.math.isFinite(value) or value >= @as(f64, @floatFromInt(std.math.maxInt(usize)))) {
                                 try this.addError(elide_lines.loc, "Expected a non-negative integer");
                             } else {
                                 this.ctx.bundler_options.elide_lines = @intFromFloat(value);
