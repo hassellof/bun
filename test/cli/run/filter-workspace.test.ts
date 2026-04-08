@@ -500,7 +500,11 @@ describe("bun", () => {
     });
 
     if (process.platform === "win32") {
-      const { exitCode, stderr, stdout } = spawnSync({
+      // On Windows, `pretty_output` additionally requires `windowsIsTerminal()`
+      // (a char-device stdout), which `spawnSync` with `stdout: "pipe"` never
+      // satisfies. So elision is effectively off regardless of FORCE_COLOR,
+      // and we can only assert on exit behavior here.
+      const { exitCode, stderr } = spawnSync({
         cwd: dir,
         cmd: [
           bunExe(),
@@ -515,8 +519,18 @@ describe("bun", () => {
         stderr: "pipe",
       });
 
-      expect(stderr.toString()).toMatch(/--elide-lines is only supported in terminal environments/);
-      expect(exitCode).not.toBe(0);
+      if (elideLines !== undefined) {
+        // Explicit `--elide-lines` in a non-terminal: the user asked for it,
+        // so we surface the limitation as a fatal error.
+        expect(stderr.toString()).toMatch(/--elide-lines is only supported in terminal environments/);
+        expect(exitCode).not.toBe(0);
+      } else {
+        // `BUN_CONFIG_ELIDE_LINES` / bunfig.toml is a global default and must
+        // be a silent no-op when elision isn't possible — otherwise every CI
+        // invocation that sets the env var would fail on Windows.
+        expect(stderr.toString()).not.toMatch(/--elide-lines is only supported in terminal environments/);
+        expect(exitCode).toBe(0);
+      }
       return;
     }
 
@@ -568,5 +582,73 @@ describe("bun", () => {
       antipattern: [/\[15 lines elided\]/],
       env: { BUN_CONFIG_ELIDE_LINES: "5" },
     });
+  });
+
+  // These two tests run with piped stdout and the default `bunEnv`
+  // (`NO_COLOR=1`, no `FORCE_COLOR`) so that `pretty_output` is false on
+  // every platform, simulating a CI pipeline. They exercise the difference
+  // between an explicit `--elide-lines` flag and the `BUN_CONFIG_ELIDE_LINES`
+  // env var when elision can't actually run.
+  test("BUN_CONFIG_ELIDE_LINES is silently ignored in non-terminal environments", () => {
+    const dir = tempDirWithFiles("testworkspace", {
+      packages: {
+        dep0: {
+          "index.js": Array(20).fill("console.log('log_line');").join("\n"),
+          "package.json": JSON.stringify({
+            name: "dep0",
+            scripts: {
+              script: `${bunExe()} run index.js`,
+            },
+          }),
+        },
+      },
+      "package.json": JSON.stringify({
+        name: "ws",
+        workspaces: ["packages/*"],
+      }),
+    });
+
+    const { exitCode, stderr, stdout } = spawnSync({
+      cwd: dir,
+      cmd: [bunExe(), "run", "--filter", "./packages/dep0", "script"],
+      env: { ...bunEnv, BUN_CONFIG_ELIDE_LINES: "17" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(stderr.toString()).not.toMatch(/--elide-lines is only supported/);
+    expect(stdout.toString()).toMatch(/log_line/);
+    expect(exitCode).toBe(0);
+  });
+
+  test("--elide-lines still errors in non-terminal environments", () => {
+    const dir = tempDirWithFiles("testworkspace", {
+      packages: {
+        dep0: {
+          "index.js": Array(20).fill("console.log('log_line');").join("\n"),
+          "package.json": JSON.stringify({
+            name: "dep0",
+            scripts: {
+              script: `${bunExe()} run index.js`,
+            },
+          }),
+        },
+      },
+      "package.json": JSON.stringify({
+        name: "ws",
+        workspaces: ["packages/*"],
+      }),
+    });
+
+    const { exitCode, stderr } = spawnSync({
+      cwd: dir,
+      cmd: [bunExe(), "run", "--filter", "./packages/dep0", "--elide-lines", "15", "script"],
+      env: bunEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(stderr.toString()).toMatch(/--elide-lines is only supported in terminal environments/);
+    expect(exitCode).not.toBe(0);
   });
 });

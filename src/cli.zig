@@ -474,6 +474,13 @@ pub const Command = struct {
             env_behavior: api.DotEnvBehavior = .disable,
             env_prefix: []const u8 = "",
             elide_lines: ?usize = null,
+            /// Whether `elide_lines` was set via the `--elide-lines` CLI flag
+            /// (as opposed to `BUN_CONFIG_ELIDE_LINES` or bunfig.toml). Used by
+            /// `filter_run` to decide whether it's appropriate to emit the
+            /// "only supported in terminal environments" error: the flag is
+            /// explicit user intent, the env var / bunfig is a global default
+            /// and should be silently ignored when not in a terminal.
+            elide_lines_from_cli_flag: bool = false,
             // Compile options
             compile: bool = false,
             compile_target: Cli.CompileTarget = .{},

@@ -550,10 +550,17 @@ pub fn runScriptsWithFilter(ctx: Command.Context) !noreturn {
         .env = this_transpiler.env,
     };
 
-    // Check if elide-lines is used in a non-terminal environment
+    // `--elide-lines` only has an effect in terminal environments (see the
+    // early-return in `State.redraw`). If the user passed the flag explicitly
+    // we surface that as an error so they know it won't work; if the value
+    // came from `BUN_CONFIG_ELIDE_LINES` or bunfig.toml (global defaults),
+    // silently ignore it instead — otherwise every CI invocation that sets
+    // the env var globally would fail with a misleading error.
     if (ctx.bundler_options.elide_lines != null and !state.pretty_output) {
-        Output.prettyErrorln("<r><red>error<r>: --elide-lines is only supported in terminal environments", .{});
-        Global.exit(1);
+        if (ctx.bundler_options.elide_lines_from_cli_flag) {
+            Output.prettyErrorln("<r><red>error<r>: --elide-lines is only supported in terminal environments", .{});
+            Global.exit(1);
+        }
     }
 
     // initialize the handles
