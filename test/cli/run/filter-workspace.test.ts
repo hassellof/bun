@@ -718,4 +718,41 @@ describe("bun", () => {
     expect(stdout.toString()).toMatch(/log_line/);
     expect(exitCode).toBe(0);
   });
+
+  test("run.elide-lines in bunfig.toml rejects fractional values", () => {
+    const dir = tempDirWithFiles("testworkspace", {
+      packages: {
+        dep0: {
+          "index.js": `console.log('hi');`,
+          "package.json": JSON.stringify({
+            name: "dep0",
+            scripts: {
+              script: `${bunExe()} run index.js`,
+            },
+          }),
+        },
+      },
+      "package.json": JSON.stringify({
+        name: "ws",
+        workspaces: ["packages/*"],
+      }),
+      // `0.7` would otherwise silently `@intFromFloat` to `0`, which
+      // disables elision entirely — the opposite of what the error
+      // message suggests. `-c ./bunfig.toml` is passed so `bun run`
+      // actually loads the bunfig (the auto-load path skips it for
+      // `run`).
+      "bunfig.toml": `[run]\nelide-lines = 0.7\n`,
+    });
+
+    const { exitCode, stderr } = spawnSync({
+      cwd: dir,
+      cmd: [bunExe(), "-c", "./bunfig.toml", "run", "--filter", "./packages/dep0", "script"],
+      env: bunEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(stderr.toString()).toMatch(/Expected a non-negative integer/);
+    expect(exitCode).not.toBe(0);
+  });
 });

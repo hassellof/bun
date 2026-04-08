@@ -865,8 +865,16 @@ pub const Bunfig = struct {
                             // targets — `@floatFromInt(maxInt(u64))` rounds
                             // up to `2^64`, which is itself out of range for
                             // `@intFromFloat` into `usize`.
+                            // Also reject fractional values (e.g. `0.7`)
+                            // instead of letting `@intFromFloat` silently
+                            // truncate them — `run.elide-lines = 0.7` would
+                            // become `0`, which disables elision entirely
+                            // and contradicts the "Expected a non-negative
+                            // integer" error message. The CLI flag path
+                            // rejects these via `std.fmt.parseInt`, so this
+                            // keeps the two code paths consistent.
                             const value = elide_lines.data.e_number.value;
-                            if (value < 0 or !std.math.isFinite(value) or value >= @as(f64, @floatFromInt(std.math.maxInt(usize)))) {
+                            if (value < 0 or !std.math.isFinite(value) or value != @floor(value) or value >= @as(f64, @floatFromInt(std.math.maxInt(usize)))) {
                                 try this.addError(elide_lines.loc, "Expected a non-negative integer");
                             } else {
                                 this.ctx.bundler_options.elide_lines = @intFromFloat(value);
