@@ -417,8 +417,10 @@ pub const JSValue = enum(i64) {
 
         return buf[0..@as(usize, @intCast(count))];
     }
-    extern fn JSC__JSValue__DateNowISOString(*JSGlobalObject, f64) JSValue;
-    pub fn getDateNowISOString(globalObject: *jsc.JSGlobalObject, buf: *[28]u8) []const u8 {
+    extern fn JSC__JSValue__DateNowISOString(*jsc.JSGlobalObject, *[64]u8) c_int;
+    /// Writes `new Date(Date.now()).toISOString()` into `buf` and returns
+    /// the written slice. Empty slice on failure.
+    pub fn getDateNowISOString(globalObject: *jsc.JSGlobalObject, buf: *[64]u8) []const u8 {
         const count = JSC__JSValue__DateNowISOString(globalObject, buf);
         if (count < 0) {
             return "";
