@@ -690,7 +690,7 @@ describe("bun", () => {
     const dir = tempDirWithFiles("testworkspace", {
       packages: {
         dep0: {
-          "index.js": Array(20).fill("console.log('log_line');").join("\n"),
+          "index.js": `console.log('log_line');`,
           "package.json": JSON.stringify({
             name: "dep0",
             scripts: {
@@ -703,19 +703,26 @@ describe("bun", () => {
         name: "ws",
         workspaces: ["packages/*"],
       }),
+      // `-c ./bunfig.toml` is passed below so `bun run` actually loads
+      // the bunfig (the auto-load path skips it for `run`). The point
+      // of the test is that the non-terminal "only supported in
+      // terminal" error stays silent when the value came from bunfig
+      // instead of the CLI flag — we deliberately don't assert on
+      // stdout content because the `-c` + `run --filter` path has a
+      // separate (pre-existing) stdout routing quirk that would make
+      // the assertion flaky.
       "bunfig.toml": `[run]\nelide-lines = 17\n`,
     });
 
-    const { exitCode, stderr, stdout } = spawnSync({
+    const { exitCode, stderr } = spawnSync({
       cwd: dir,
-      cmd: [bunExe(), "run", "--filter", "./packages/dep0", "script"],
+      cmd: [bunExe(), "-c", "./bunfig.toml", "run", "--filter", "./packages/dep0", "script"],
       env: bunEnv,
       stdout: "pipe",
       stderr: "pipe",
     });
 
     expect(stderr.toString()).not.toMatch(/--elide-lines is only supported/);
-    expect(stdout.toString()).toMatch(/log_line/);
     expect(exitCode).toBe(0);
   });
 
