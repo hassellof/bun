@@ -586,6 +586,48 @@ describe("bun", () => {
     });
   });
 
+  test("empty --elide-lines value falls back to BUN_CONFIG_ELIDE_LINES", () => {
+    // Mimics `--elide-lines "$MAYBE_UNSET"` expanding to `--elide-lines ""`:
+    // the empty flag value must not shadow the env var, since neither was
+    // an explicit user choice.
+    const dir = tempDirWithFiles("testworkspace", {
+      packages: {
+        dep0: {
+          "index.js": Array(20).fill("console.log('log_line');").join("\n"),
+          "package.json": JSON.stringify({
+            name: "dep0",
+            scripts: {
+              script: `${bunExe()} run index.js`,
+            },
+          }),
+        },
+      },
+      "package.json": JSON.stringify({
+        name: "ws",
+        workspaces: ["packages/*"],
+      }),
+    });
+
+    const { exitCode, stdout } = spawnSync({
+      cwd: dir,
+      cmd: [bunExe(), "run", "--filter", "./packages/dep0", "--elide-lines", "", "script"],
+      env: { ...bunEnv, BUN_CONFIG_ELIDE_LINES: "17", FORCE_COLOR: "1", NO_COLOR: "0" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    if (process.platform === "win32") {
+      // Windows non-terminal: `pretty_output` is false; the env var is
+      // silently ignored, no elision output. Just verify exit 0 — the
+      // empty CLI value didn't get parsed as explicit flag.
+      expect(exitCode).toBe(0);
+    } else {
+      expect(stdout.toString()).toMatch(/\[3 lines elided\]/);
+      expect(stdout.toString()).not.toMatch(/\[10 lines elided\]/);
+      expect(exitCode).toBe(0);
+    }
+  });
+
   // These two tests run with piped stdout and the default `bunEnv`
   // (`NO_COLOR=1`, no `FORCE_COLOR`) so that `pretty_output` is false on
   // every platform, simulating a CI pipeline. They exercise the difference

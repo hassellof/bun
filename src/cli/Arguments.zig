@@ -39,19 +39,23 @@ pub fn resolve_jsx_runtime(str: string) !Api.JsxRuntime {
 }
 
 /// Populate `ctx.bundler_options.elide_lines` from the `--elide-lines` CLI
-/// flag, falling back to `BUN_CONFIG_ELIDE_LINES` when the flag is absent.
+/// flag, falling back to `BUN_CONFIG_ELIDE_LINES` when the flag is absent
+/// *or* expanded to an empty string (e.g. `--elide-lines "$MAYBE_UNSET"`).
 /// The `elide_lines_from_cli_flag` bit is only set when the value came from
 /// the CLI, so callers can distinguish explicit user intent from a global
 /// default (see `filter_run.runScriptsWithFilter`).
 fn parseElideLinesOption(args: anytype, ctx: Command.Context) void {
-    if (args.option("--elide-lines")) |elide_lines| {
-        if (elide_lines.len > 0) {
-            ctx.bundler_options.elide_lines = std.fmt.parseInt(usize, elide_lines, 10) catch {
-                Output.prettyErrorln("<r><red>error<r>: Invalid elide-lines: \"{s}\"", .{elide_lines});
-                Global.exit(1);
-            };
-            ctx.bundler_options.elide_lines_from_cli_flag = true;
-        }
+    const cli_value: ?[]const u8 = if (args.option("--elide-lines")) |v|
+        (if (v.len > 0) v else null)
+    else
+        null;
+
+    if (cli_value) |elide_lines| {
+        ctx.bundler_options.elide_lines = std.fmt.parseInt(usize, elide_lines, 10) catch {
+            Output.prettyErrorln("<r><red>error<r>: Invalid elide-lines: \"{s}\"", .{elide_lines});
+            Global.exit(1);
+        };
+        ctx.bundler_options.elide_lines_from_cli_flag = true;
     } else if (bun.env_var.BUN_CONFIG_ELIDE_LINES.get()) |value| {
         // `BUN_CONFIG_ELIDE_LINES` is parsed as `u64`; `elide_lines` is a
         // `usize`. Clamp rather than `@intCast`, which would panic on 32-bit
