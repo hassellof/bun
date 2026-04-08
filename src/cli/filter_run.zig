@@ -551,13 +551,16 @@ pub fn runScriptsWithFilter(ctx: Command.Context) !noreturn {
     };
 
     // `--elide-lines` only has an effect in terminal environments (see the
-    // early-return in `State.redraw`). If the user passed the flag explicitly
-    // we surface that as an error so they know it won't work; if the value
-    // came from `BUN_CONFIG_ELIDE_LINES` or bunfig.toml (global defaults),
-    // silently ignore it instead — otherwise every CI invocation that sets
-    // the env var globally would fail with a misleading error.
-    if (ctx.bundler_options.elide_lines != null and !state.pretty_output) {
-        if (ctx.bundler_options.elide_lines_from_cli_flag) {
+    // early-return in `State.redraw`). Error out only when the user explicitly
+    // passed `--elide-lines <N>` with a non-zero limit — that way they know
+    // the flag won't do anything. `--elide-lines 0` means "show everything",
+    // which is what the non-pretty path already does, so we let it through.
+    // Values from `BUN_CONFIG_ELIDE_LINES` or `run.elide-lines` in
+    // bunfig.toml (global defaults) are silently ignored instead — otherwise
+    // every CI invocation that sets them globally would fail with a
+    // misleading error.
+    if (ctx.bundler_options.elide_lines) |elide_lines| {
+        if (elide_lines > 0 and !state.pretty_output and ctx.bundler_options.elide_lines_from_cli_flag) {
             Output.prettyErrorln("<r><red>error<r>: --elide-lines is only supported in terminal environments", .{});
             Global.exit(1);
         }

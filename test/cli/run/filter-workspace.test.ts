@@ -651,4 +651,69 @@ describe("bun", () => {
     expect(stderr.toString()).toMatch(/--elide-lines is only supported in terminal environments/);
     expect(exitCode).not.toBe(0);
   });
+
+  test("--elide-lines=0 is a no-op in non-terminal environments", () => {
+    const dir = tempDirWithFiles("testworkspace", {
+      packages: {
+        dep0: {
+          "index.js": Array(20).fill("console.log('log_line');").join("\n"),
+          "package.json": JSON.stringify({
+            name: "dep0",
+            scripts: {
+              script: `${bunExe()} run index.js`,
+            },
+          }),
+        },
+      },
+      "package.json": JSON.stringify({
+        name: "ws",
+        workspaces: ["packages/*"],
+      }),
+    });
+
+    const { exitCode, stderr, stdout } = spawnSync({
+      cwd: dir,
+      cmd: [bunExe(), "run", "--filter", "./packages/dep0", "--elide-lines", "0", "script"],
+      env: bunEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(stderr.toString()).not.toMatch(/--elide-lines is only supported/);
+    expect(stdout.toString()).toMatch(/log_line/);
+    expect(exitCode).toBe(0);
+  });
+
+  test("run.elide-lines in bunfig.toml is silently ignored in non-terminal environments", () => {
+    const dir = tempDirWithFiles("testworkspace", {
+      packages: {
+        dep0: {
+          "index.js": Array(20).fill("console.log('log_line');").join("\n"),
+          "package.json": JSON.stringify({
+            name: "dep0",
+            scripts: {
+              script: `${bunExe()} run index.js`,
+            },
+          }),
+        },
+      },
+      "package.json": JSON.stringify({
+        name: "ws",
+        workspaces: ["packages/*"],
+      }),
+      "bunfig.toml": `[run]\nelide-lines = 17\n`,
+    });
+
+    const { exitCode, stderr, stdout } = spawnSync({
+      cwd: dir,
+      cmd: [bunExe(), "run", "--filter", "./packages/dep0", "script"],
+      env: bunEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(stderr.toString()).not.toMatch(/--elide-lines is only supported/);
+    expect(stdout.toString()).toMatch(/log_line/);
+    expect(exitCode).toBe(0);
+  });
 });

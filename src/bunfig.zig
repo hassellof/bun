@@ -853,7 +853,18 @@ pub const Bunfig = struct {
 
                     if (run_expr.get("elide-lines")) |elide_lines| {
                         if (elide_lines.data == .e_number) {
-                            this.ctx.bundler_options.elide_lines = @intFromFloat(elide_lines.data.e_number.value);
+                            // Guard against negative and out-of-range values
+                            // before `@intFromFloat`, which would panic in
+                            // safe builds (and be UB in release). Any non-
+                            // representable value is treated as a bunfig
+                            // error so the user gets a real message instead
+                            // of a crash.
+                            const value = elide_lines.data.e_number.value;
+                            if (value < 0 or !std.math.isFinite(value) or value > @as(f64, @floatFromInt(std.math.maxInt(usize)))) {
+                                try this.addError(elide_lines.loc, "Expected a non-negative integer");
+                            } else {
+                                this.ctx.bundler_options.elide_lines = @intFromFloat(value);
+                            }
                         } else {
                             try this.addError(elide_lines.loc, "Expected number");
                         }
