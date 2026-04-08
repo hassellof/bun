@@ -519,15 +519,17 @@ describe("bun", () => {
         stderr: "pipe",
       });
 
-      if (elideLines !== undefined) {
-        // Explicit `--elide-lines` in a non-terminal: the user asked for it,
-        // so we surface the limitation as a fatal error.
+      if (elideLines !== undefined && elideLines > 0) {
+        // Explicit `--elide-lines <positive>` in a non-terminal: the user
+        // asked for it, so we surface the limitation as a fatal error.
         expect(stderr.toString()).toMatch(/--elide-lines is only supported in terminal environments/);
         expect(exitCode).not.toBe(0);
       } else {
-        // `BUN_CONFIG_ELIDE_LINES` / bunfig.toml is a global default and must
-        // be a silent no-op when elision isn't possible — otherwise every CI
-        // invocation that sets the env var would fail on Windows.
+        // `--elide-lines 0` means "show everything" (matches the non-pretty
+        // path's default anyway), and `BUN_CONFIG_ELIDE_LINES` / bunfig.toml
+        // are global defaults. Both must be a silent no-op when elision
+        // isn't possible — otherwise every CI invocation on Windows that
+        // sets the env var globally or passes `--elide-lines 0` would fail.
         expect(stderr.toString()).not.toMatch(/--elide-lines is only supported in terminal environments/);
         expect(exitCode).toBe(0);
       }
