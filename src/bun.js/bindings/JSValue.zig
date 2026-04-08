@@ -405,8 +405,11 @@ pub const JSValue = enum(i64) {
         return bun.jsc.fromJSHostCallGeneric(globalObject, @src(), JSC__JSValue__push, .{ value, globalObject, out });
     }
 
-    extern fn JSC__JSValue__toISOString(*jsc.JSGlobalObject, jsc.JSValue, *[28]u8) c_int;
-    pub fn toISOString(this: JSValue, globalObject: *jsc.JSGlobalObject, buf: *[28]u8) []const u8 {
+    extern fn JSC__JSValue__toISOString(*jsc.JSGlobalObject, jsc.JSValue, *[64]u8) c_int;
+    /// Serializes a JavaScript `Date` value as an ISO 8601 / RFC 3339 string
+    /// (the same format as `Date.prototype.toISOString`). Returns an empty
+    /// slice on failure (e.g. the value is not a finite `Date`).
+    pub fn toISOString(this: JSValue, globalObject: *jsc.JSGlobalObject, buf: *[64]u8) []const u8 {
         const count = JSC__JSValue__toISOString(globalObject, this, buf);
         if (count < 0) {
             return "";
